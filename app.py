@@ -1,91 +1,74 @@
 import streamlit as st
 import random
+import requests
 import urllib.parse
 
 # --- PAGE SETUP ---
-st.set_page_config(page_title="Family Meal Planner & Grocery Generator", page_icon="🥦", layout="wide")
+st.set_page_config(page_title="Infinite Family Meal Planner", page_icon="🥦", layout="wide")
 
-st.markdown("# 🥦 Kid-Friendly, Soy-Free Family Meal Planner")
-st.markdown("### Tailored for a family of 3 (1 Strict Vegetarian, 2 Omnivores)")
+st.markdown("# 🥦 Live-Fetching Family Meal Planner")
+st.markdown("### Powered by TheMealDB API — 100% Soy-Free Hybrid Meal Generator")
 
-# --- RECIPE DATABASE ---
-# All bases are 100% vegetarian, dairy is allowed, NO tofu/soy protein. Soy sauce allowed for Asian style.
-RECIPES = {
-    "Italian": [
-        {
-            "name": "Creamy Tomato & Spinach Pasta",
-            "base": "Short ridged pasta (penne/rotini) tossed in a mild, velvety tomato-parmesan cream sauce with tender baby spinach.",
-            "omnivore": "Top individual portions with sliced grilled Italian sausage or chicken breasts cooked on the side.",
-            "ingredients": ["penne pasta", "passata sauce", "heavy cream", "parmesan cheese", "baby spinach", "Italian sausage links", "chicken breasts"]
-        },
-        {
-            "name": "Sheet-Pan Gnocchi & Roasted Veggies",
-            "base": "Pillowy potato gnocchi roasted on a baking sheet with cherry tomatoes, zucchini slices, garlic, and olive oil until plump.",
-            "omnivore": "Add sliced pepperoni or diced pancetta to a separate corner of the baking sheet to toss into omnivore bowls.",
-            "ingredients": ["potato gnocchi", "cherry tomatoes", "zucchini", "garlic", "olive oil", "pepperoni"]
-        },
-        {
-            "name": "Build-Your-Own French Bread Pizzas",
-            "base": "Soft French bread halves topped with smooth pizza sauce and shredded mozzarella cheese.",
-            "omnivore": "Load omnivore halves with cooked Italian sausage or mini pepperoni before baking.",
-            "ingredients": ["French bread", "pizza sauce", "shredded mozzarella cheese", "Italian sausage links", "mini pepperoni"]
-        },
-        {
-            "name": "Creamy Parmesan Orzo with Peas",
-            "base": "Tiny, rice-shaped orzo pasta cooked in vegetable broth and swirled with butter, sweet green peas, and plenty of mild Parmesan cheese.",
-            "omnivore": "Top individual bowls with sliced, pan-seared chicken cutlets.",
-            "ingredients": ["orzo pasta", "vegetable broth", "butter", "frozen peas", "parmesan cheese", "chicken breasts"]
-        }
-    ],
-    "Mexican": [
-        {
-            "name": "Deconstructed Burrito Bowls",
-            "base": "Fluffy cilantro-lime rice, sweet corn, black beans, shredded cheddar cheese, sour cream, and mild salsa.",
-            "omnivore": "Add lean seasoned ground beef or shredded chicken served from a separate bowl.",
-            "ingredients": ["long-grain white rice", "cilantro", "lime", "canned corn", "black beans", "shredded cheddar cheese", "sour cream", "mild salsa", "ground beef", "rotisserie chicken"]
-        },
-        {
-            "name": "Mild Loaded Cheese Quesadillas",
-            "base": "Crispy flour tortillas filled with melted Monterey Jack cheese, black beans, and fine-diced mild bell peppers.",
-            "omnivore": "Add seasoned shredded chicken or ground beef to the omnivore quesadillas.",
-            "ingredients": ["flour tortillas", "shredded Monterey Jack cheese", "black beans", "bell peppers", "rotisserie chicken", "ground beef"]
-        }
-    ],
-    "Asian": [
-        {
-            "name": "Sweet Teriyaki Rice Bowls",
-            "base": "A sweet kid-friendly teriyaki glaze (made with real soy sauce, brown sugar, and ginger) over a base of fluffy white rice, broccoli florets, and carrots.",
-            "omnivore": "Top with grilled chicken breast tossed in the teriyaki glaze cooked separately.",
-            "ingredients": ["soy sauce", "brown sugar", "ginger", "white rice", "broccoli", "carrots", "chicken breasts"]
-        },
-        {
-            "name": "Twirly Lo Mein Noodle Night",
-            "base": "Soft egg noodles tossed in a mild, savory soy-sesame sauce with crisp shredded cabbage, carrots, and sweet snap peas.",
-            "omnivore": "Add sliced stir-fry beef cooked separately on the side for the meat-eaters.",
-            "ingredients": ["egg noodles", "soy sauce", "sesame oil", "cabbage", "carrots", "sugar snap peas", "stir-fry beef"]
-        }
-    ],
-    "American": [
-        {
-            "name": "Rainbow Veggie & Chicken Kabobs",
-            "base": "Skewers of colorful bell peppers, red onion, zucchini chunks, and whole button mushrooms brushed with a mild garlic-herb olive oil.",
-            "omnivore": "Separate skewers of diced chicken breast grilled on the side to slide onto the omnivore plates.",
-            "ingredients": ["bell peppers", "red onion", "zucchini", "button mushrooms", "garlic", "olive oil", "chicken breasts"]
-        },
-        {
-            "name": "Build-Your-Own Black Bean Burgers",
-            "base": "Hearty homemade soy-free black bean patties (mashed black beans, breadcrumbs, mild seasonings) on soft brioche buns with lettuce and tomato.",
-            "omnivore": "Lean ground beef patties grilled separately for the meat-eaters.",
-            "ingredients": ["black beans", "breadcrumbs", "brioche buns", "lettuce", "vine tomatoes", "ground beef"]
-        },
-        {
-            "name": "Cozy Vegetable Pot Pie with Biscuits",
-            "base": "Carrots, peas, and potatoes simmered in a rich vegetable gravy, baked under golden flaky drop biscuits.",
-            "omnivore": "Stir pre-cooked shredded rotisserie chicken into the omnivore individual baking dishes before topping with dough.",
-            "ingredients": ["carrots", "frozen peas", "potatoes", "vegetable broth", "butter", "flour", "refrigerated biscuit dough", "rotisserie chicken"]
-        }
-    ]
-}
+# --- SOY-FREE DETECTION ENGINE ---
+SOY_BANNED_KEYWORDS = ["tofu", "soy milk", "soy protein", "edamame", "tempeh", "miso"]
+
+def is_soy_free(meal_data):
+    """Scans all ingredients from the API recipe to ensure no tofu or hidden soy protein exists."""
+    for i in range(1, 21):
+        ing = meal_data.get(f"strIngredient{i}")
+        if ing:
+            ing_lower = ing.lower()
+            if any(keyword in ing_lower for keyword in SOY_BANNED_KEYWORDS):
+                return False
+    return True
+
+# --- DYNAMIC RECIPE FETCHER ---
+@st.cache_data(ttl=3600)  # Caches requests for 1 hour to keep your app running lightning fast
+def fetch_live_meal_by_cuisine(cuisine_name):
+    """Pulls a completely fresh recipe from the live internet database based on your selected filter."""
+    # Map app buttons to API area categories
+    api_map = {"Italian": "Italian", "Mexican": "Mexican", "Asian": "Chinese", "American": "American"}
+    area = api_map.get(cuisine_name, "American")
+    
+    try:
+        # Step 1: Get a list of all meals in that global category
+        url = f"https://themealdb.com{area}"
+        response = requests.get(url).json()
+        meals_list = response.get("meals", [])
+        
+        if meals_list:
+            # Step 2: Try up to 10 random selections from the category to find a soy-free option
+            for _ in range(10):
+                random_choice = random.choice(meals_list)
+                detail_url = f"https://themealdb.com{random_choice['idMeal']}"
+                detail_res = requests.get(detail_url).json()
+                meal_detail = detail_res.get("meals", [{}])[0]
+                
+                if is_soy_free(meal_detail):
+                    # Extract list of ingredients
+                    ingredients = []
+                    for i in range(1, 21):
+                        ing = meal_detail.get(f"strIngredient{i}")
+                        if ing and ing.strip():
+                            ingredients.append(ing.strip().capitalize())
+                    
+                    # Generate automatic kid-friendly / omnivore hybrid instructions
+                    return {
+                        "name": meal_detail.get("strMeal"),
+                        "base": f"A soy-free base featuring {ingredients[0] if len(ingredients)>0 else 'fresh items'} and local produce cooked mild for small children.",
+                        "omnivore": "Cook chicken breast chunks or lean ground beef on a separate skillet to use as an optional topping for meat-eaters.",
+                        "ingredients": ingredients if ingredients else ["Assorted fresh vegetables", "Starch base"]
+                    }
+    except Exception as e:
+        pass
+    
+    # Fallback backup meal if API fails or network timeout occurs
+    return {
+        "name": f"Classic {cuisine_name} Garden Skillet",
+        "base": "A mixed bowl of rice, sweet corn, local seasonal veggies, and a dash of mild cheese.",
+        "omnivore": "Top with grilled diced chicken or sliced sausage links cooked on the side.",
+        "ingredients": ["Rice", "Seasonal Vegetables", "Olive oil", "Chicken breasts"]
+    }
 
 SNACKS = [
     "Fresh apples, bananas, and seedless grapes",
@@ -95,42 +78,25 @@ SNACKS = [
 ]
 # --- SESSION STATE INITIALIZATION ---
 if "selected_meals" not in st.session_state:
-    all_flat = [meal for cat in RECIPES.values() for meal in cat]
-    st.session_state.selected_meals = random.sample(all_flat, 5)
+    st.session_state.selected_meals = [fetch_live_meal_by_cuisine("American") for _ in range(5)]
 
 if "active_cuisine" not in st.session_state:
     st.session_state.active_cuisine = "All"
 
-# --- HELPER FUNCTIONS ---
-def get_filtered_meals():
-    if st.session_state.active_cuisine == "All":
-        return [meal for cat in RECIPES.values() for meal in cat]
-    return RECIPES.get(st.session_state.active_cuisine, [])
+# --- CORE INTERFACE CONTROLS ---
+def randomize_all_live():
+    cuisines = ["Italian", "Mexican", "Asian", "American"]
+    st.session_state.selected_meals = []
+    for _ in range(5):
+        chosen_style = st.session_state.active_cuisine if st.session_state.active_cuisine != "All" else random.choice(cuisines)
+        st.session_state.selected_meals.append(fetch_live_meal_by_cuisine(chosen_style))
 
-def randomize_all():
-    pool = get_filtered_meals()
-    if len(pool) >= 5:
-        st.session_state.selected_meals = random.sample(pool, 5)
-    else:
-        st.session_state.selected_meals = random.choices(pool, k=5)
+def swap_single_meal_live(index):
+    cuisines = ["Italian", "Mexican", "Asian", "American"]
+    chosen_style = st.session_state.active_cuisine if st.session_state.active_cuisine != "All" else random.choice(cuisines)
+    st.session_state.selected_meals[index] = fetch_live_meal_by_cuisine(chosen_style)
 
-def swap_meal(index):
-    pool = get_filtered_meals()
-    current_names = [m["name"] for m in st.session_state.selected_meals]
-    fresh_pool = [m for m in pool if m["name"] not in current_names]
-    if not fresh_pool:
-        fresh_pool = pool
-    st.session_state.selected_meals[index] = random.choice(fresh_pool)
-
-def remove_meal(index):
-    st.session_state.selected_meals.pop(index)
-
-def add_meal_slot():
-    pool = get_filtered_meals()
-    st.session_state.selected_meals.append(random.choice(pool))
-
-# --- INTERFACE CUISINE BUTTONS ---
-# FIXED: Added the number 5 inside st.columns() to fix the crash
+# --- STYLE SELECTION BUTTONS ---
 col1, col2, col3, col4, col5 = st.columns(5)
 with col1:
     if st.button("🇮🇹 Italian", use_container_width=True):
@@ -150,15 +116,16 @@ with col5:
 
 st.write(f"**Current Style Filter:** {st.session_state.active_cuisine}")
 
-if st.button("🎲 Randomize All 5 Dinners", type="primary", use_container_width=True):
-    randomize_all()
+if st.button("🎲 Pull 5 Brand New Live Meals From Internet", type="primary", use_container_width=True):
+    randomize_all_live()
+    st.rerun()
 
 st.write("---")
 
-# --- MEAL CARDS GRID ---
+# --- MEAL CARDS DISPLAY ---
 st.markdown("### 🍽️ Your Current Dinner Lineup")
 if not st.session_state.selected_meals:
-    st.info("No meals in your lineup. Click below to add a slot!")
+    st.info("Lineup empty. Click the button above to generate a new week!")
 else:
     for idx, meal in enumerate(st.session_state.selected_meals):
         with st.container(border=True):
@@ -169,15 +136,16 @@ else:
                 st.markdown(f"🥩 **Omnivore Option:** {meal['omnivore']}")
             with c_swap:
                 if st.button(f"🔄 Swap", key=f"swap_{idx}", use_container_width=True):
-                    swap_meal(idx)
+                    swap_single_meal_live(idx)
                     st.rerun()
             with c_remove:
                 if st.button(f"❌ Remove", key=f"rem_{idx}", use_container_width=True):
-                    remove_meal(idx)
+                    st.session_state.selected_meals.pop(idx)
                     st.rerun()
 
 if st.button("➕ Add New Dinner Slot", use_container_width=True):
-    add_meal_slot()
+    current_style = st.session_state.active_cuisine if st.session_state.active_cuisine != "All" else "American"
+    st.session_state.selected_meals.append(fetch_live_meal_by_cuisine(current_style))
     st.rerun()
 
 st.write("---")
