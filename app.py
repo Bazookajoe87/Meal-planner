@@ -130,7 +130,8 @@ def add_meal_slot():
     st.session_state.selected_meals.append(random.choice(pool))
 
 # --- INTERFACE CUISINE BUTTONS ---
-col1, col2, col3, col4, col5 = st.columns()
+# FIXED: Added the number 5 inside st.columns() to fix the crash
+col1, col2, col3, col4, col5 = st.columns(5)
 with col1:
     if st.button("🇮🇹 Italian", use_container_width=True):
         st.session_state.active_cuisine = "Italian"
@@ -161,7 +162,7 @@ if not st.session_state.selected_meals:
 else:
     for idx, meal in enumerate(st.session_state.selected_meals):
         with st.container(border=True):
-            c_title, c_swap, c_remove = st.columns()
+            c_title, c_swap, c_remove = st.columns([4, 1, 1])
             with c_title:
                 st.markdown(f"#### Day {idx+1}: {meal['name']}")
                 st.markdown(f"🌿 **Vegetarian Base:** {meal['base']}")
@@ -222,4 +223,3 @@ with col_amazon:
     query_items = "+and+".join([urllib.parse.quote(ing.lower()) for ing in list(compiled_ingredients)[:5]])
     cart_url = f"{amazon_base_url}{query_items}+grocery"
     st.markdown(f'<a href="{cart_url}" target="_blank"><button style="width:100%; height:40px; border-radius:5px; background-color:#FF9900; color:white; border:none; cursor:pointer;">🛒 Send to Amazon Cart</button></a>', unsafe_allow_html=True)
-
